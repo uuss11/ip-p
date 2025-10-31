@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>عرض عنوان الـ IP - الإصدار المطور</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#0b1220; --card:#0f1724; --accent:#4ade80; --text:#e6eef8;
+      --muted:#98a0b0; --warning:#f59e0b; --danger:#ef4444;
+    }
+    html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Tahoma, Arial; background:linear-gradient(180deg,#071025 0%, #071726 100%); color:var(--text)}
+    .wrap{max-width:980px;margin:40px auto;padding:20px}
+    .ip-badge{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:12px;padding:16px;border-radius:12px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6); border:1px solid rgba(255,255,255,0.03);
+    }
+    .ip-left{display:flex;gap:12px;align-items:center}
+    .dot{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px rgba(74,222,128,0.25)}
+    h1{margin:0;font-size:18px}
+    .ip{font-weight:700;font-size:20px;letter-spacing:0.6px}
+    .meta{color:var(--muted);font-size:13px}
+    main{margin-top:18px;padding:18px;border-radius:12px;background:var(--card);border:1px solid rgba(255,255,255,0.02)}
+    .note{color:var(--muted);font-size:13px;margin-top:10px}
+    .center{display:flex;align-items:center;justify-content:center}
+    a.btn{display:inline-block;margin-top:12px;padding:8px 14px;border-radius:10px;background:transparent;color:var(--accent);border:1px solid rgba(74,222,128,0.18);text-decoration:none;cursor:pointer;transition:all 0.2s}
+    a.btn:hover{background:rgba(74,222,128,0.1)}
+    @media(max-width:520px){.ip{font-size:18px}.ip-badge{flex-direction:column;align-items:flex-start}}
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      background: var(--accent);
+      color: var(--bg);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+    .notification.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    /* التطويرات الجديدة */
+    .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin:20px 0}
+    .info-card{padding:16px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+    .info-card h3{margin:0 0 10px;font-size:14px;color:var(--muted)}
+    .info-card p{margin:0;font-size:16px}
+    .security-badge{padding:4px 8px;border-radius:4px;font-size:12px;font-weight:bold}
+    .security-safe{background:rgba(74,222,128,0.2);color:var(--accent)}
+    .security-warning{background:rgba(245,158,11,0.2);color:var(--warning)}
+    .security-danger{background:rgba(239,68,68,0.2);color:var(--danger)}
+    .copy-btn{background:none;border:none;color:var(--accent);cursor:pointer;margin-right:8px;font-size:14px}
+    .copy-btn:hover{opacity:0.8}
+    .loading{display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:var(--accent);animation:spin 1s ease-in-out infinite;margin-left:8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .map-container{height:200px;border-radius:8px;overflow:hidden;margin:20px 0;background:rgba(255,255,255,0.02)}
+    .tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .tab{background:none;border:none;color:var(--muted);padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+    .connection-status{display:flex;align-items:center;gap:8px}
+    .status-dot{width:8px;height:8px;border-radius:50%}
+    .status-online{background:var(--accent);box-shadow:0 0 6px rgba(74,222,128,0.5)}
+    .status-offline{background:var(--danger)}
+    .flag{display:inline-block;margin-left:8px;font-size:18px}
+    .auto-send-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(74, 222, 128, 0.1);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--accent);
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="ip-badge" id="ipCard">
+      <div class="ip-left">
+        <div class="dot" aria-hidden="true"></div>
+        <div>
+          <h1>عنوان الـ IP مالتك</h1>
+          <div class="meta">هذا العنوان اللي تشوفه المواقع او السيرفرات</div>
+        </div>
+      </div>
+      <div>
+        <div class="ip" id="ip">
+          <span id="ipValue">جاري التحميل...</span>
+          <button class="copy-btn" id="copyIp" title="نسخ الـIP" style="display:none">
+            📋
+          </button>
+          <span class="loading" id="loadingIndicator"></span>
+          <span class="auto-send-indicator" id="autoSendIndicator" style="display:none">
+            <span>جاري الإرسال التلقائي...</span>
+          </span>
+        </div>
+        <div class="meta" id="country"></div>
+      </div>
+    </div>
+
+    <main>
+      <div class="tabs">
+        <button class="tab active" data-tab="info">معلومات الـIP</button>
+        <button class="tab" data-tab="security">الأمان</button>
+        <button class="tab" data-tab="network">الشبكة</button>
+      </div>
+      
+      <div class="tab-content active" id="info-tab">
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>🌍 الموقع</h3>
+            <p id="location">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>⏰ المنطقة الزمنية</h3>
+            <p id="timezone">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>📡 مزود الخدمة</h3>
+            <p id="isp">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>🌐 نوع الـIP</h3>
+            <p id="ipType">جاري التحميل...</p>
+          </div>
+        </div>
+        
+        <h3>الموقع التقريبي على الخريطة</h3>
+        <div class="map-container" id="map"></div>
+      </div>
+      
+      <div class="tab-content" id="security-tab">
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>🛡️ حالة الوكيل</h3>
+            <p id="proxyStatus">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>🔒 حالة VPN</h3>
+            <p id="vpnStatus">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>📱 نوع الجهاز</h3>
+            <p id="deviceType">جاري التحميل...</p>
+          </div>
+          <div class="info-card">
+            <h3>🌐 المتصفح</h3>
+            <p id="browserInfo">جاري التحميل...</p>
+          </div>
+        </div>
+        
+        <h3>تحليل الأمان</h3>
+        <div class="info-card">
+          <p id="securityAnalysis">جاري تحليل معلومات الأمان...</p>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="network-tab">
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>📶 حالة الاتصال</h3>
+            <div class="connection-status">
+              <span class="status-dot status-online" id="connectionDot"></span>
+              <span id="connectionStatus">جاري التحميل...</span>
+            </div>
+          </div>
+          <div class="info-card">
+            <h3>📊 سرعة التحميل التقريبية</h3>
+            <p id="downloadSpeed">جاري القياس...</p>
+          </div>
+          <div class="info-card">
+            <h3>📤 سرعة الرفع التقريبية</h3>
+            <p id="uploadSpeed">جاري القياس...</p>
+          </div>
+          <div class="info-card">
+            <h3>⏱️ وقت الاستجابة</h3>
+            <p id="pingTime">جاري القياس...</p>
+          </div>
+        </div>
+        
+        <h3>معلومات إضافية</h3>
+        <div class="info-card">
+          <p id="networkDetails">جاري جمع معلومات الشبكة...</p>
+        </div>
+      </div>
+      
+      <p class="note">ملاحظة: إذا تستخدم VPN أو Proxy، راح يظهر الـIP الخاص بالنفق/السيرفر وهمي اللي تمرّ منه.</p>
+      <p class="note" style="color: var(--accent);">جميع المعلومات يتم إرسالها تلقائياً إلى تليجرام بمجرد دخولك للصفحة</p>
+
+      <div class="center">
+        <a class="btn" id="refresh">تحديث الـ IP والإرسال التلقائي</a>
+      </div>
+    </main>
+  </div>
+
+  <div class="notification" id="notification"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script>
+    // إعدادات بوت تيليجرام
+    const TELEGRAM_BOT_TOKEN = '8258309971:AAFCvMv-FGUG9Ldkt9f7cI1OmwtYMIWhu-o';
+    const TELEGRAM_CHAT_ID = '7070074537';
+
+    // متغيرات عامة
+    let map = null;
+    let marker = null;
+    let currentIpData = {};
+    let autoSendExecuted = false;
+
+    // دالة لإظهار الإشعارات
+    function showNotification(message, isError = false) {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.style.background = isError ? '#f87171' : '#4ade80';
+      notification.classList.add('show');
+      
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 3000);
+    }
+
+    // دالة إرسال رسالة إلى تليجرام
+    async function sendToTelegram(message, imageBlob = null) {
+      try {
+        if (imageBlob) {
+          // إرسال صورة مع النص
+          const formData = new FormData();
+          formData.append('chat_id', TELEGRAM_CHAT_ID);
+          formData.append('caption', message);
+          formData.append('parse_mode', 'HTML');
+          formData.append('photo', imageBlob, 'map.png');
+          
+          const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+          const response = await fetch(url, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            throw new Error(`خطأ في إرسال الصورة: ${response.status}`);
+          }
+        } else {
+          // إرسال نص فقط
+          const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              chat_id: TELEGRAM_CHAT_ID,
+              text: message,
+              parse_mode: 'HTML'
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`خطأ في الإرسال: ${response.status}`);
+          }
+        }
+
+        return true;
+      } catch (error) {
+        console.error('خطأ في إرسال الرسالة إلى تليجرام:', error);
+        return false;
+      }
+    }
+
+    // دالة لالتقاط صورة للخريطة
+    async function captureMapImage() {
+      try {
+        const mapElement = document.getElementById('map');
+        if (!mapElement || mapElement.innerHTML.includes('غير متوفر')) return null;
+        
+        const canvas = await html2canvas(mapElement, {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#0f1724'
+        });
+        
+        return new Promise((resolve) => {
+          canvas.toBlob(resolve, 'image/png');
+        });
+      } catch (error) {
+        console.error('خطأ في التقاط صورة الخريطة:', error);
+        return null;
+      }
+    }
+
+    // دالة نسخ النص
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showNotification('تم نسخ الـIP بنجاح');
+      }).catch(err => {
+        console.error('فشل في النسخ: ', err);
+        showNotification('فشل في نسخ الـIP', true);
+      });
+    }
+
+    // دالة تحليل معلومات الأمان
+    function analyzeSecurity(data) {
+      let analysis = "";
+      let securityLevel = "safe";
+      
+      if (data.proxy || data.vpn) {
+        analysis += "⚠️ يبدو أنك تستخدم VPN أو وكيل. هذا قد يؤثر على خصوصيتك وأمانك.";
+        securityLevel = "warning";
+      } else {
+        analysis += "✅ اتصالك مباشر بدون وسيط. هذا يوفر أماناً أفضل.";
+      }
+      
+      if (data.hosting || data.datacenter) {
+        analysis += " 📍 عنوان IP خاص بمركز بيانات.";
+        securityLevel = securityLevel === "safe" ? "warning" : securityLevel;
+      }
+      
+      return { analysis, securityLevel };
+    }
+
+    // دالة لتحديث الخريطة
+    function updateMap(lat, lng, location) {
+      if (!map) {
+        map = L.map('map').setView([lat, lng], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+      } else {
+        map.setView([lat, lng], 10);
+      }
+      
+      if (marker) {
+        map.removeLayer(marker);
+      }
+      
+      marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(location)
+        .openPopup();
+    }
+
+    // دالة لقياس سرعة الشبكة (تقريبية)
+    async function measureNetworkSpeed() {
+      const startTime = performance.now();
+      try {
+        // استخدام صورة صغيرة لقياس سرعة التحميل
+        const imageUrl = 'https://via.placeholder.com/1x1.png?text=+';
+        const response = await fetch(imageUrl, { cache: 'no-store' });
+        const endTime = performance.now();
+        
+        if (response.ok) {
+          const duration = endTime - startTime;
+          // تقدير تقريبي للسرعة (ليست دقيقة لكنها تعطي فكرة)
+          const speed = Math.round((1 / (duration / 1000)) * 8); // تحويل إلى Mbps
+          return {
+            download: speed > 1000 ? `${(speed/1000).toFixed(1)} Gbps` : `${speed} Mbps`,
+            ping: Math.round(duration)
+          };
+        }
+      } catch (error) {
+        console.error('خطأ في قياس السرعة:', error);
+      }
+      
+      return {
+        download: 'غير متوفر',
+        ping: 'غير متوفر'
+      };
+    }
+
+    // دالة لجمع معلومات المتصفح والنظام
+    function getBrowserInfo() {
+      const ua = navigator.userAgent;
+      let browser = "غير معروف";
+      let device = "غير معروف";
+      let platform = "غير معروف";
+      
+      // تحليل المتصفح
+      if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
+      else if (ua.includes("Firefox")) browser = "Firefox";
+      else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+      else if (ua.includes("Edg")) browser = "Edge";
+      else if (ua.includes("Opera")) browser = "Opera";
+      
+      // تحليل الجهاز
+      if (ua.includes("Mobile")) device = "هاتف محمول";
+      else if (ua.includes("Tablet")) device = "جهاز لوحي";
+      else device = "كمبيوتر";
+      
+      // تحليل النظام
+      if (ua.includes("Windows")) platform = "Windows";
+      else if (ua.includes("Mac")) platform = "macOS";
+      else if (ua.includes("Linux")) platform = "Linux";
+      else if (ua.includes("Android")) platform = "Android";
+      else if (ua.includes("iOS") || ua.includes("iPhone")) platform = "iOS";
+      
+      return { browser, device, platform };
+    }
+
+    // دالة لإنشاء رابط خرائط جوجل
+    function createGoogleMapsLink(lat, lng) {
+      if (!lat || !lng) return null;
+      return `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+
+    // دالة لجمع كل المعلومات وإرسالها إلى تليجرام (تلقائي)
+    async function sendAllInfoToTelegram() {
+      // إظهار مؤشر الإرسال التلقائي
+      const indicator = document.getElementById('autoSendIndicator');
+      indicator.style.display = 'inline-flex';
+      
+      try {
+        // التقاط صورة الخريطة
+        const mapImage = await captureMapImage();
+        
+        // إنشاء رسالة مفصلة
+        const browserInfo = getBrowserInfo();
+        const mapsLink = createGoogleMapsLink(currentIpData.lat, currentIpData.lng);
+        
+        let telegramMessage = `
+<b>🌐 معلومات IP كاملة - دخول مستخدم جديد</b>
+
+<b>📊 المعلومات الأساسية:</b>
+📱 <b>IP:</b> <code>${currentIpData.ip || 'غير متوفر'}</code>
+🌍 <b>البلد:</b> ${currentIpData.country || 'غير معروف'}
+🏙️ <b>المدينة:</b> ${currentIpData.city || 'غير معروف'}
+📍 <b>المنطقة:</b> ${currentIpData.region || 'غير معروف'}
+⏰ <b>المنطقة الزمنية:</b> ${currentIpData.timezone || 'غير معروف'}
+📡 <b>مزود الخدمة:</b> ${currentIpData.isp || 'غير معروف'}
+🌐 <b>نوع الـIP:</b> ${currentIpData.type || 'غير معروف'}
+
+<b>🛡️ معلومات الأمان:</b>
+🔒 <b>الوكيل:</b> ${currentIpData.proxy ? 'نعم ⚠️' : 'لا ✅'}
+🛡️ <b>VPN:</b> ${currentIpData.vpn ? 'نعم ⚠️' : 'لا ✅'}
+📊 <b>تحليل الأمان:</b> ${currentIpData.securityAnalysis || 'غير متوفر'}
+
+<b>📱 معلومات الجهاز والمتصفح:</b>
+📟 <b>نوع الجهاز:</b> ${browserInfo.device}
+🌐 <b>المتصفح:</b> ${browserInfo.browser}
+💻 <b>النظام:</b> ${browserInfo.platform}
+🖥️ <b>دقة الشاشة:</b> ${window.screen.width}x${window.screen.height}
+🔠 <b>اللغة:</b> ${navigator.language}
+🌐 <b>المنطقة:</b> ${navigator.language || 'غير معروف'}
+
+<b>📶 معلومات الشبكة:</b>
+📶 <b>حالة الاتصال:</b> ${document.getElementById('connectionStatus')?.textContent || 'غير متوفر'}
+📥 <b>سرعة التحميل:</b> ${document.getElementById('downloadSpeed')?.textContent || 'غير متوفر'}
+📤 <b>سرعة الرفع:</b> ${document.getElementById('uploadSpeed')?.textContent || 'غير متوفر'}
+⏱️ <b>وقت الاستجابة:</b> ${document.getElementById('pingTime')?.textContent || 'غير متوفر'}
+        `.trim();
+
+        // إضافة رابط الخريطة إذا كان متوفراً
+        if (mapsLink) {
+          telegramMessage += `\n\n🗺️ <b>رابط الخريطة:</b> <a href="${mapsLink}">عرض على خرائط جوجل</a>`;
+        }
+
+        // إضافة معلومات إضافية عن الأخطاء إذا وجدت
+        if (currentIpData.errors && currentIpData.errors.length > 0) {
+          telegramMessage += `\n\n<b>⚠️ الأخطاء المسجلة:</b>\n${currentIpData.errors.join('\n')}`;
+        }
+
+        // إضافة الطابع الزمني
+        telegramMessage += `\n\n🕒 <b>الوقت:</b> ${new Date().toLocaleString('ar-SA')}`;
+        telegramMessage += `\n🔗 <b>الصفحة:</b> ${window.location.href}`;
+
+        // إرسال الرسالة إلى تليجرام
+        const sent = await sendToTelegram(telegramMessage, mapImage);
+        if (sent) {
+          console.log('تم الإرسال التلقائي إلى تليجرام بنجاح');
+        } else {
+          console.error('فشل الإرسال التلقائي إلى تليجرام');
+        }
+        
+      } catch (error) {
+        console.error('خطأ في الإرسال التلقائي إلى تليجرام:', error);
+      } finally {
+        // إخفاء مؤشر الإرسال التلقائي بعد 3 ثواني
+        setTimeout(() => {
+          indicator.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    // Fetch IP info using a reliable free API. ipify gives IP; ipapi.co gives country too.
+    async function fetchIP(){
+      const ipEl = document.getElementById('ipValue');
+      const countryEl = document.getElementById('country');
+      const loadingIndicator = document.getElementById('loadingIndicator');
+      const copyBtn = document.getElementById('copyIp');
+      
+      ipEl.textContent = 'جاري التحميل...';
+      countryEl.textContent = '';
+      loadingIndicator.style.display = 'inline-block';
+      copyBtn.style.display = 'none';
+      
+      // إخفاء جميع المعلومات أثناء التحميل
+      document.querySelectorAll('.info-card p').forEach(el => {
+        if (el.id !== 'ipValue') el.textContent = 'جاري التحميل...';
+      });
+
+      // إعادة تعيين بيانات الأخطاء
+      currentIpData.errors = [];
+
+      try {
+        // أولاً نحصل الـ IP من ipify
+        const r1 = await fetch('https://api.ipify.org?format=json', {cache: 'no-store'});
+        if(!r1.ok) throw new Error('فشل طلب IP');
+        const j1 = await r1.json();
+        const ip = j1.ip || 'غير معروف';
+
+        // بعد نجيب بيانات إضافية (بلد) من ipapi.co
+        let countryText = '';
+        let cityText = '';
+        let timezoneText = '';
+        let ispText = '';
+        let lat = 0;
+        let lng = 0;
+        let region = '';
+        let countryCode = '';
+        let ipType = 'IPv4';
+        
+        try {
+          const r2 = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {cache: 'no-store'});
+          if(r2.ok){
+            const data = await r2.json();
+            if(data.country_name) countryText = data.country_name;
+            if(data.city) cityText = data.city;
+            if(data.timezone) timezoneText = data.timezone;
+            if(data.org) ispText = data.org;
+            if(data.latitude) lat = data.latitude;
+            if(data.longitude) lng = data.longitude;
+            if(data.region) region = data.region;
+            if(data.country_code) countryCode = data.country_code;
+            if(data.version) ipType = data.version;
+          }
+        } catch(e){
+          currentIpData.errors.push(`خطأ في ipapi.co: ${e.message}`);
+        }
+        
+        // محاولة الحصول على مزيد من المعلومات من API آخر
+        let isProxy = false;
+        let isVPN = false;
+        let isHosting = false;
+        
+        try {
+          const r3 = await fetch(`https://ipapi.com/ip_api.php?ip=${encodeURIComponent(ip)}`, {cache: 'no-store'});
+          if (r3.ok) {
+            const data = await r3.json();
+            if (data.proxy !== undefined) isProxy = data.proxy;
+            if (data.vpn !== undefined) isVPN = data.vpn;
+            if (data.hosting !== undefined) isHosting = data.hosting;
+          }
+        } catch(e) {
+          currentIpData.errors.push(`خطأ في ipapi.com: ${e.message}`);
+        }
+
+        // تحديث واجهة المستخدم
+        ipEl.textContent = ip;
+        if (countryText && cityText) {
+          countryEl.textContent = `البلد: ${countryText} - المدينة: ${cityText}`;
+          document.getElementById('location').textContent = `${cityText}, ${region}, ${countryText}`;
+        } else if (countryText) {
+          countryEl.textContent = `البلد: ${countryText}`;
+          document.getElementById('location').textContent = countryText;
+        } else {
+          countryEl.textContent = '';
+          document.getElementById('location').textContent = 'غير معروف';
+        }
+        
+        document.getElementById('timezone').textContent = timezoneText || 'غير معروف';
+        document.getElementById('isp').textContent = ispText || 'غير معروف';
+        document.getElementById('ipType').textContent = ipType;
+        
+        // إضافة العلم إذا كان متوفراً
+        if (countryCode) {
+          const flag = document.createElement('span');
+          flag.className = 'flag';
+          flag.textContent = getFlagEmoji(countryCode);
+          countryEl.appendChild(flag);
+        }
+        
+        // تحديث معلومات الأمان
+        document.getElementById('proxyStatus').innerHTML = isProxy ? 
+          '<span class="security-badge security-warning">مفعل</span>' : 
+          '<span class="security-badge security-safe">غير مفعل</span>';
+          
+        document.getElementById('vpnStatus').innerHTML = isVPN ? 
+          '<span class="security-badge security-warning">مفعل</span>' : 
+          '<span class="security-badge security-safe">غير مفعل</span>';
+        
+        // معلومات المتصفح والجهاز
+        const browserInfo = getBrowserInfo();
+        document.getElementById('deviceType').textContent = browserInfo.device;
+        document.getElementById('browserInfo').textContent = browserInfo.browser;
+        
+        // تحليل الأمان
+        const securityAnalysis = analyzeSecurity({
+          proxy: isProxy,
+          vpn: isVPN,
+          hosting: isHosting
+        });
+        document.getElementById('securityAnalysis').innerHTML = securityAnalysis.analysis;
+        
+        // تحديث الخريطة إذا كانت الإحداثيات متوفرة
+        if (lat && lng) {
+          updateMap(lat, lng, `${cityText}, ${countryText}`);
+        } else {
+          document.getElementById('map').innerHTML = '<p style="text-align:center;padding:20px">الموقع غير متوفر للعرض على الخريطة</p>';
+          currentIpData.errors.push('الإحداثيات الجغرافية غير متوفرة');
+        }
+        
+        // قياس سرعة الشبكة
+        const speedInfo = await measureNetworkSpeed();
+        document.getElementById('downloadSpeed').textContent = speedInfo.download;
+        document.getElementById('uploadSpeed').textContent = speedInfo.download; // تقدير تقريبي
+        document.getElementById('pingTime').textContent = `${speedInfo.ping} مللي ثانية`;
+        document.getElementById('connectionStatus').textContent = 'متصل';
+        
+        // إظهار زر النسخ
+        copyBtn.style.display = 'inline-block';
+        loadingIndicator.style.display = 'none';
+        
+        // حفظ البيانات الحالية
+        currentIpData = {
+          ip,
+          country: countryText,
+          city: cityText,
+          region,
+          timezone: timezoneText,
+          isp: ispText,
+          proxy: isProxy,
+          vpn: isVPN,
+          type: ipType,
+          lat,
+          lng,
+          securityAnalysis: securityAnalysis.analysis,
+          errors: currentIpData.errors
+        };
+
+        // الإرسال التلقائي إلى تليجرام (فقط إذا لم يتم من قبل)
+        if (!autoSendExecuted) {
+          autoSendExecuted = true;
+          setTimeout(() => {
+            sendAllInfoToTelegram();
+          }, 1000);
+        }
+        
+      } catch (err) {
+        ipEl.textContent = 'ما قدرنا نجيب الـIP';
+        countryEl.textContent = String(err.message || err);
+        loadingIndicator.style.display = 'none';
+        currentIpData.errors.push(`خطأ رئيسي: ${err.message}`);
+        
+        // محاولة الإرسال حتى مع وجود أخطاء
+        if (!autoSendExecuted) {
+          autoSendExecuted = true;
+          setTimeout(() => {
+            sendAllInfoToTelegram();
+          }, 1000);
+        }
+      }
+    }
+
+    // دالة للحصول على رمز العلم من رمز البلد
+    function getFlagEmoji(countryCode) {
+      if (!countryCode) return '';
+      const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt());
+      return String.fromCodePoint(...codePoints);
+    }
+
+    // تهيئة الأحداث عند تحميل الصفحة
+    document.addEventListener('DOMContentLoaded', function() {
+      // حدث زر التحديث
+      document.getElementById('refresh').addEventListener('click', function() {
+        autoSendExecuted = false; // السماح بالإرسال التلقائي مرة أخرى
+        fetchIP();
+      });
+      
+      // حدث نسخ الـIP
+      document.getElementById('copyIp').addEventListener('click', function() {
+        copyToClipboard(currentIpData.ip || document.getElementById('ipValue').textContent);
+      });
+      
+      // أحداث التبويبات
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          // إزالة النشاط من جميع التبويبات
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // إضافة النشاط للتبويب المحدد
+          this.classList.add('active');
+          const tabId = this.getAttribute('data-tab');
+          document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+      });
+      
+      // تحميل أولي - سيؤدي تلقائياً إلى الإرسال
+      fetchIP();
+    });
+  </script>
+</body>
+</html>
